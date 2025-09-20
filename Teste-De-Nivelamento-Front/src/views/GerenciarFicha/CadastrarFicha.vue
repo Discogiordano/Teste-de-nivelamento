@@ -1,45 +1,42 @@
 <template>
-  <div>
-    <h2>Cadastrar Ficha do Paciente</h2>
-    <FormSection
-      :titulo="'Dados da Ficha'"
-      :campos="campos"
-      v-model="form"
-    />
-    <v-btn color="primary" @click="salvar">Salvar</v-btn>
-    <Mensagem :mensagem="mensagem" />
-  </div>
+  <CardFormulario :tituloFormulario="'Cadastrar Poço'" @salvar="salvar" @cancelar="cancelar">
+    <FormSection titulo="Dados da Ficha" :campos="camposFicha" :modelValue="formFicha" />
+  </CardFormulario>
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue';
 import FormSection from '../../components/FormSection.vue';
-import Mensagem from '../../components/Mensagem.vue';
+import CardFormulario from '../../components/CardFormulario.vue';
 
-const form = ref({
-  nome: '',
-  numeroCarteira: '',
-  especialidade: '',
-  plano: ''
+const formFicha = ref({
+  NomePaciente: '',
+  NumeroCarteiraPlano: '',
+  IdPlanoDeSaude: '',
+  IdEspecialidade: ''
 });
 
-const campos = [
-  { label: 'Nome do paciente', nome: 'nome', tipo: 'texto', placeholder: 'Digite o nome' },
-  { label: 'Número da carteira', nome: 'numeroCarteira', tipo: 'texto', placeholder: 'Digite o número da carteira' },
-  { label: 'Especialidade desejada', nome: 'especialidade', tipo: 'combo', opcoes: ['Cardiologia', 'Ortopedia'] },
-  { label: 'Plano de saúde', nome: 'plano', tipo: 'combo', opcoes: ['Plano A', 'Plano B'] }
+// Interface Campo garante que cada campo do formulário siga o formato esperado pelo componente FormSection.
+// Ela define os tipos permitidos, obrigatoriedade e opções, evitando erros de digitação e facilitando o autocomplete.
+interface Campo {
+  label: string; // Texto exibido como label do campo
+  nome: string; // Nome da propriedade no objeto de dados
+  tipo: 'texto' | 'combo' | 'numero' | 'data' | 'binario' | 'arquivo'; // Tipo do campo suportado pelo FormSection
+  placeholder?: string; // Texto de placeholder para campos de texto
+  opcoes?: string[]; // Opções para campos do tipo combo
+}
+
+const camposFicha: Campo[] = [
+  { label: 'Nome do Paciente', nome: 'NomePaciente', tipo: 'texto', placeholder: 'Digite o nome' },
+  { label: 'Número da Carteira', nome: 'NumeroCarteiraPlano', tipo: 'texto', placeholder: 'Digite o número da carteira' },
+  { label: 'Plano de Saúde', nome: 'IdPlanoDeSaude', tipo: 'combo', opcoes: ['Plano A', 'Plano B'] },
+  { label: 'Especialidade', nome: 'IdEspecialidade', tipo: 'combo', opcoes: ['Cardiologia', 'Ortopedia'] }
 ];
 
-const mensagem = ref('');
-
 function salvar() {
-  // Simulação de validação de duplicidade
-  // Substitua por chamada à API/backend
-  if (form.value.nome === 'João' && form.value.plano === 'Plano A' && form.value.especialidade === 'Cardiologia') {
-    mensagem.value = 'Esta especialidade Cardiologia já foi utilizada para o plano Plano A';
-  } else {
-    mensagem.value = 'Ficha cadastrada com sucesso!';
-    // Aqui você faria o POST para o backend
-  }
+  // Aqui você faria o POST para o backend
+}
+function cancelar() {
+  // Aqui você pode navegar para outra página ou limpar o formulário
 }
 </script>

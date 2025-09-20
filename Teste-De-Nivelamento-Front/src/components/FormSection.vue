@@ -12,81 +12,92 @@
           cols="12"
           md="4"
         >
-          <label class="campo-label" :for="campo.nome">{{ campo.label }}</label>
-          <v-text-field
-            v-if="campo.tipo === 'texto'"
-            v-model="valores[campo.nome]"
-            :placeholder="campo.placeholder"
-            :id="campo.nome"
-            variant="outlined"
-            density="comfortable"
-            clearable
-          ></v-text-field>
-          <v-text-field
-            v-else-if="campo.tipo === 'numero'"
-            v-model="valores[campo.nome]"
-            type="number"
-            :placeholder="campo.placeholder"
-            :id="campo.nome"
-            variant="outlined"
-            density="comfortable"
-            clearable
-          ></v-text-field>
-          <v-text-field
-            v-else-if="campo.tipo === 'data'"
-            v-model="valores[campo.nome]"
-            type="date"
-            :placeholder="campo.placeholder"
-            :id="campo.nome"
-            variant="outlined"
-            density="comfortable"
-            clearable
-          ></v-text-field>
-          <v-radio-group
-            v-else-if="campo.tipo === 'binario'"
-            v-model="valores[campo.nome]"
-            inline
-            :id="campo.nome"
-          >
-            <v-radio label="Sim" value="sim"></v-radio>
-            <v-radio label="Não" value="nao"></v-radio>
-          </v-radio-group>
-          <v-file-input
-            v-else-if="campo.tipo === 'arquivo'"
-            v-model="files"
-            accept="image/*,application/pdf"
-            variant="outlined"
-            density="comfortable"
-            clearable
-            multiple
-            label="Selecione arquivos"
-            style="width: 600px;"
-            :id="campo.nome"
-          >
-            <template v-slot:selection="{ fileNames }">
-              <v-list density="compact">
-                <v-list-item
-                  v-for="(file, index) in files"
-                  :key="index"
-                >
-                  <template #prepend>
-                    <v-icon :icon="getFileIcon(file)" color="primary"></v-icon>
-                  </template>
-                  <v-list-item-title>{{ file.name }}</v-list-item-title>
-                </v-list-item>
-              </v-list>
-            </template>
-          </v-file-input>
-          <v-select
-            v-else-if="campo.tipo === 'combo'"
-            v-model="valores[campo.nome]"
-            :items="campo.opcoes"
-            :placeholder="campo.placeholder"
-            :id="campo.nome"
-            variant="outlined"
-            density="comfortable"
-            clearable
-          ></v-select>
+          <template v-if="campo.tipo === 'texto'">
+            <label class="campo-label" :for="campo.nome">{{ campo.label }}</label>
+            <v-text-field
+              v-model="valores[campo.nome]"
+              :placeholder="campo.placeholder"
+              :id="campo.nome"
+              variant="outlined"
+              density="comfortable"
+              clearable
+            ></v-text-field>
+          </template>
+          <template v-else-if="campo.tipo === 'numero'">
+            <label class="campo-label" :for="campo.nome">{{ campo.label }}</label>
+            <v-text-field
+              v-model="valores[campo.nome]"
+              type="number"
+              :placeholder="campo.placeholder"
+              :id="campo.nome"
+              variant="outlined"
+              density="comfortable"
+              clearable
+            ></v-text-field>
+          </template>
+          <template v-else-if="campo.tipo === 'data'">
+            <label class="campo-label" :for="campo.nome">{{ campo.label }}</label>
+            <v-text-field
+              v-model="valores[campo.nome]"
+              type="date"
+              :placeholder="campo.placeholder"
+              :id="campo.nome"
+              variant="outlined"
+              density="comfortable"
+              clearable
+            ></v-text-field>
+          </template>
+          <template v-else-if="campo.tipo === 'binario'">
+            <label class="campo-label" :for="campo.nome">{{ campo.label }}</label>
+            <v-radio-group
+              v-model="valores[campo.nome]"
+              inline
+              :id="campo.nome"
+            >
+              <v-radio label="Sim" value="sim"></v-radio>
+              <v-radio label="Não" value="nao"></v-radio>
+            </v-radio-group>
+          </template>
+          <template v-else-if="campo.tipo === 'arquivo'">
+            <label class="campo-label" :for="campo.nome">{{ campo.label }}</label>
+            <v-file-input
+              v-model="files"
+              accept="image/*,application/pdf"
+              variant="outlined"
+              density="comfortable"
+              clearable
+              multiple
+              label="Selecione arquivos"
+              style="width: 600px;"
+              :id="campo.nome"
+            >
+              <template v-slot:selection="{ fileNames }">
+                <v-list density="compact">
+                  <v-list-item
+                    v-for="(file, index) in files"
+                    :key="index"
+                  >
+                    <template #prepend>
+                      <v-icon :icon="getFileIcon(file)" color="primary"></v-icon>
+                    </template>
+                    <v-list-item-title>{{ file.name }}</v-list-item-title>
+                  </v-list-item>
+                </v-list>
+              </template>
+            </v-file-input>
+          </template>
+          <template v-else-if="campo.tipo === 'combo'">
+            <label class="campo-label" :for="campo.nome">{{ campo.label }}</label>
+            <v-select
+              v-model="valores[campo.nome]"
+              :items="campo.opcoes"
+              :placeholder="campo.placeholder"
+              :id="campo.nome"
+              variant="outlined"
+              density="comfortable"
+              clearable
+            ></v-select>
+          </template>
         </v-col>
       </v-row>
     </div>

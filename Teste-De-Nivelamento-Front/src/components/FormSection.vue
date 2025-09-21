@@ -91,6 +91,8 @@
             <v-select
               v-model="valores[campo.nome]"
               :items="campo.opcoes"
+              item-title="nome"
+              item-value="id"
               :placeholder="campo.placeholder"
               :id="campo.nome"
               variant="outlined"
@@ -119,7 +121,7 @@ interface Campo {
   nome: string;
   tipo: 'texto' | 'numero' | 'combo' | 'data' | 'binario' | 'arquivo';
   placeholder?: string;
-  opcoes?: string[];
+  opcoes?: Array<string | { id: number | string; nome: string }>;
   condicao?: Condicao;
 }
 

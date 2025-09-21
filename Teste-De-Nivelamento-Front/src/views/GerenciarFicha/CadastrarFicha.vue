@@ -106,31 +106,40 @@ async function salvar() {
     especialidadeId: Number(formFicha.value.IdEspecialidade)
   };
   try {
-  const response = await fetch(buildUrl('/fichas-paciente/cadastrar-ficha'), {
+    const response = await fetch(buildUrl('/fichas-paciente/cadastrar-ficha'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify(payload)
     });
-    const result = await response.json();
     if (!response.ok) {
-      alert(result);
-    } else {
-      alert('Ficha cadastrada com sucesso!');
-      // Limpa o formulário ou navega para outra página
-      formFicha.value = {
-        NomePaciente: '',
-        NumeroCarteiraPlano: '',
-        IdPlanoDeSaude: '',
-        IdEspecialidade: ''
-      };
-        // Redireciona para HomeView
-        router.push('/');
+      // Sempre lê como texto em caso de erro
+      const errorText = await response.text();
+      alert('Erro ao cadastrar: ' + errorText);
+      return;
     }
+    // Se sucesso, lê como JSON (se houver)
+    let result = {};
+    
+    
+    alert('Ficha cadastrada com sucesso!');
+    // Limpa o formulário ou navega para outra página
+    formFicha.value = {
+      NomePaciente: '',
+      NumeroCarteiraPlano: '',
+      IdPlanoDeSaude: '',
+      IdEspecialidade: ''
+    };
+    // Redireciona para HomeView
+    router.push('/');
   } catch (error) {
     console.error('Erro ao cadastrar ficha:', error);
-    alert('Erro ao cadastrar ficha.');
+    if (error && typeof (error as any).message === 'string') {
+      alert('Erro ao cadastrar ficha: ' + (error as any).message);
+    } else {
+      alert('Erro ao cadastrar ficha.');
+    }
   }
 }
 

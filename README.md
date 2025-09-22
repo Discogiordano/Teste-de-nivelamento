@@ -23,7 +23,11 @@ git clone https://github.com/Discogiordano/Teste-de-nivelamento.git
 
 - Abrir A Pasta Clonada no VS Code
 
-- Digite no terminal: cd Teste-de-Nivelamento-Front
+- Digite no terminal: 
+```
+cd Teste-de-Nivelamento-Front
+
+```
 
 3) Trocar para a branch de desenvolvimento
 

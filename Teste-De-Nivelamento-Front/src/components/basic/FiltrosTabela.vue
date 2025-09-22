@@ -24,16 +24,6 @@
 
     <transition name="fade">
       <div v-show="expandido" class="filtros-conteudo">
-        <!-- Busca global -->
-        <v-text-field
-          v-model="valores.principal"
-          prepend-inner-icon="mdi-magnify"
-          label="Buscar..."
-          density="comfortable"
-          variant="outlined"
-          clearable
-          class="filtro-principal"
-        />
 
         <!-- Filtros dinâmicos -->
         <div class="card-filtros" v-if="hasFiltros">
@@ -162,7 +152,7 @@ function limpar() {
   flex-direction: column;
   gap: 16px;
 }
-.filtro-principal { width: 100%; }
+.filtro-principal { width: 100%; outline: none !important; box-shadow: none !important; border: none !important; }
 
 .card-filtros {
   background-color: rgba(0,0,0,.04);

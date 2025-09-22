@@ -1,3 +1,4 @@
+<!-- src/pages/AtualizarFicha.vue -->
 <template>
   <CardFormulario :tituloFormulario="'Atualizar Ficha'" @salvar="salvar" @cancelar="cancelar">
     <FormSection titulo="Dados da Ficha" :campos="camposFicha" v-model="formFicha" />
@@ -5,40 +6,46 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
-import { useRouter, useRoute } from 'vue-router';
-import CardFormulario from '@/components/CardFormulario.vue';
-import FormSection from '@/components/FormSection.vue';
+import { ref, onMounted, computed } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
+import CardFormulario from '@/components/CardFormulario.vue'
+import FormSection from '@/components/FormSection.vue'
 
-const router = useRouter();
-const route = useRoute();
-const API_BASE = import.meta.env.VITE_API_BASE_URL;
+const router = useRouter()
+const route = useRoute()
+const API_BASE = import.meta.env.VITE_API_BASE_URL
 
 function buildUrl(path: string) {
-  if (!API_BASE) {
-    throw new Error('VITE_API_BASE_URL não configurada. Crie um arquivo .env.local com VITE_API_BASE_URL=http://localhost:8080 (ou a URL da API).');
-  }
-  const base = String(API_BASE).replace(/\/$/, '');
-  const suffix = path.startsWith('/') ? path : `/${path}`;
-  return `${base}${suffix}`;
+  if (!API_BASE) throw new Error('VITE_API_BASE_URL não configurada. Crie .env.local com VITE_API_BASE_URL=http://localhost:8080')
+  const base = String(API_BASE).replace(/\/$/, '')
+  const suffix = path.startsWith('/') ? path : `/${path}`
+  return `${base}${suffix}`
 }
 
+async function getJSON(url: string) {
+  const r = await fetch(url)
+  if (!r.ok) throw new Error(`${url} -> HTTP ${r.status}`)
+  return r.json()
+}
+
+/** ----------------- estado do formulário ----------------- **/
 const formFicha = ref({
   NomePaciente: '',
   NumeroCarteiraPlano: '',
-  IdPlanoDeSaude: '',
-  IdEspecialidade: ''
-});
+  IdPlanoDeSaude: null as number | null,
+  IdEspecialidade: null as number | null
+})
 
-const planosDeSaude = ref<Array<{id: number, nome: string}>>([]);
-const especialidades = ref<Array<{id: number, nome: string}>>([]);
+/** ----------------- combos ----------------- **/
+const planosDeSaude = ref<Array<{ id: number; nome: string }>>([])
+const especialidades = ref<Array<{ id: number; nome: string }>>([])
 
 interface Campo {
-  label: string;
-  nome: string;
-  tipo: 'texto' | 'combo' | 'numero' | 'data' | 'binario' | 'arquivo';
-  placeholder?: string;
-  opcoes?: Array<string | { id: number | string; nome: string }>;
+  label: string
+  nome: string
+  tipo: 'texto' | 'combo' | 'numero' | 'data' | 'binario' | 'arquivo'
+  placeholder?: string
+  opcoes?: Array<string | { id: number | string; nome: string }>
 }
 
 const camposFicha = computed((): Campo[] => [
@@ -46,130 +53,130 @@ const camposFicha = computed((): Campo[] => [
   { label: 'Número da Carteira', nome: 'NumeroCarteiraPlano', tipo: 'texto', placeholder: 'Digite o número da carteira' },
   { label: 'Plano de Saúde', nome: 'IdPlanoDeSaude', tipo: 'combo', opcoes: planosDeSaude.value },
   { label: 'Especialidade', nome: 'IdEspecialidade', tipo: 'combo', opcoes: especialidades.value }
-]);
+])
 
 async function carregarPlanosDeSaude() {
   try {
-    const response = await fetch(buildUrl('/planosdesaude/listar-planosdesaude'));
-    const contentType = response.headers.get('content-type') || '';
-    if (!response.ok) {
-      const body = contentType.includes('application/json') ? await response.json() : await response.text();
-      throw new Error(`HTTP ${response.status} - ${typeof body === 'string' ? body : JSON.stringify(body)}`);
-    }
-    if (!contentType.includes('application/json')) {
-      const bodyText = await response.text();
-      throw new Error(`Resposta não é JSON. content-type=${contentType}. Corpo: ${bodyText.substring(0, 200)}...`);
-    }
-    planosDeSaude.value = await response.json();
-  } catch (error) {
-    console.error('Erro ao carregar planos de saúde:', error);
+    const json = await getJSON(buildUrl('/planosdesaude/listar-planosdesaude'))
+    planosDeSaude.value = (Array.isArray(json) ? json : [])
+      .map((p: any) => ({ id: p?.id ?? p?.idplanodesaude, nome: p?.nome ?? p?.Nome ?? p?.descricao ?? '' }))
+      .filter(p => p.id && p.nome)
+      .sort((a, b) => a.nome.localeCompare(b.nome))
+  } catch (e) {
+    console.error('Erro ao carregar planos de saúde:', e)
   }
 }
 
 async function carregarEspecialidades() {
   try {
-    const response = await fetch(buildUrl('/especialidades/listar-especialidades'));
-    const contentType = response.headers.get('content-type') || '';
-    if (!response.ok) {
-      const body = contentType.includes('application/json') ? await response.json() : await response.text();
-      throw new Error(`HTTP ${response.status} - ${typeof body === 'string' ? body : JSON.stringify(body)}`);
-    }
-    if (!contentType.includes('application/json')) {
-      const bodyText = await response.text();
-      throw new Error(`Resposta não é JSON. content-type=${contentType}. Corpo: ${bodyText.substring(0, 200)}...`);
-    }
-    especialidades.value = await response.json();
-  } catch (error) {
-    console.error('Erro ao carregar especialidades:', error);
+    const json = await getJSON(buildUrl('/especialidades/listar-especialidades'))
+    especialidades.value = (Array.isArray(json) ? json : [])
+      .map((e: any) => ({ id: e?.id ?? e?.idespecialidade, nome: e?.nome ?? e?.Nome ?? e?.descricao ?? '' }))
+      .filter(e => e.id && e.nome)
+      .sort((a, b) => a.nome.localeCompare(b.nome))
+  } catch (e) {
+    console.error('Erro ao carregar especialidades:', e)
   }
 }
 
+/** ----------------- carregar detalhe ----------------- **/
 async function carregarFicha() {
-  const fichaId = route.params.id;
+  const fichaId = route.params.id
   if (!fichaId) {
-    alert('ID da ficha não encontrado');
-    router.push('/visualizar-fichas');
-    return;
+    alert('ID da ficha não encontrado')
+    router.push('/visualizar-fichas')
+    return
   }
 
   try {
-    const response = await fetch(buildUrl(`/fichas-paciente/buscar-ficha/${fichaId}`));
-    const contentType = response.headers.get('content-type') || '';
-    if (!response.ok) {
-      const body = contentType.includes('application/json') ? await response.json() : await response.text();
-      throw new Error(`HTTP ${response.status} - ${typeof body === 'string' ? body : JSON.stringify(body)}`);
-    }
-    if (!contentType.includes('application/json')) {
-      const bodyText = await response.text();
-      throw new Error(`Resposta não é JSON. content-type=${contentType}. Corpo: ${bodyText.substring(0, 200)}...`);
-    }
-    
-    const ficha = await response.json();
+    const url = buildUrl(`/fichas-paciente/buscar-ficha/${encodeURIComponent(String(fichaId))}`)
+    const r = await fetch(url)
+    if (!r.ok) throw new Error(`HTTP ${r.status}`)
+    const ficha = await r.json()
+
+    // nomes tolerantes (caso DTO varie)
+    const planoId = ficha.planoDeSaudeId ?? ficha.planoId ?? ficha.idPlanoDeSaude ?? null
+    const especId = ficha.especialidadeId ?? ficha.idEspecialidade ?? null
+
     formFicha.value = {
-      NomePaciente: ficha.nomePaciente || '',
-      NumeroCarteiraPlano: ficha.numeroCarteira || '',
-      IdPlanoDeSaude: ficha.planoDeSaudeId || '',
-      IdEspecialidade: ficha.especialidadeId || ''
-    };
-  } catch (error) {
-    console.error('Erro ao carregar ficha:', error);
-    alert('Erro ao carregar dados da ficha');
+      NomePaciente: ficha.nomePaciente ?? '',
+      // se o back mandar numeroCarteiraPlano ou numeroCarteira, ambos são aceitos:
+      NumeroCarteiraPlano: ficha.numeroCarteiraPlano ?? ficha.numeroCarteira ?? '',
+      IdPlanoDeSaude: planoId != null ? Number(planoId) : null,
+      IdEspecialidade: especId != null ? Number(especId) : null
+    }
+  } catch (e) {
+    console.error('Erro ao carregar ficha:', e)
+    alert('Erro ao carregar dados da ficha')
   }
 }
 
-onMounted(async () => {
-  await carregarPlanosDeSaude();
-  await carregarEspecialidades();
-  await carregarFicha();
-});
-
+/** ----------------- salvar ----------------- **/
 async function salvar() {
-  const fichaId = route.params.id;
-  
+  const fichaId = route.params.id
+  if (!fichaId) {
+    alert('ID inválido')
+    return
+  }
+
   if (!formFicha.value.IdPlanoDeSaude) {
-    alert('Por favor, selecione um plano de saúde válido.');
-    return;
+    alert('Por favor, selecione um plano de saúde válido.')
+    return
   }
   if (!formFicha.value.IdEspecialidade) {
-    alert('Por favor, selecione uma especialidade válida.');
-    return;
+    alert('Por favor, selecione uma especialidade válida.')
+    return
   }
 
-  const payload = {
+  // O back está validando "numeroCarteira" — enviamos ambos por compat.
+  const payload: any = {
     nomePaciente: formFicha.value.NomePaciente,
-    numeroCarteira: formFicha.value.NumeroCarteiraPlano,
+    numeroCarteira: formFicha.value.NumeroCarteiraPlano,       // requerido pelo back
+    numeroCarteiraPlano: formFicha.value.NumeroCarteiraPlano,  // compat
+    // Alguns backs usam idPlanoDeSaude/idEspecialidade; se precisar, troque abaixo:
     planoDeSaudeId: Number(formFicha.value.IdPlanoDeSaude),
     especialidadeId: Number(formFicha.value.IdEspecialidade)
-  };
+  }
 
   try {
-    const response = await fetch(buildUrl(`/fichas-paciente/atualizar-ficha/${fichaId}`), {
+    // rota principal que você usa
+    let r = await fetch(buildUrl(`/fichas-paciente/atualizar-ficha/${encodeURIComponent(String(fichaId))}`), {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      alert('Erro ao atualizar: ' + errorText);
-      return;
+    })
+
+    // fallback REST (se existir no seu back)
+    if (r.status === 404 || r.status === 405) {
+      r = await fetch(buildUrl(`/fichas-paciente/${encodeURIComponent(String(fichaId))}`), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
     }
-    
-    alert('Ficha atualizada com sucesso!');
-    router.push('/visualizar-fichas');
-  } catch (error) {
-    console.error('Erro ao atualizar ficha:', error);
-    if (error && typeof (error as any).message === 'string') {
-      alert('Erro ao atualizar ficha: ' + (error as any).message);
-    } else {
-      alert('Erro ao atualizar ficha.');
+
+    if (!r.ok) {
+      const txt = await r.text().catch(() => '')
+      throw new Error(`Erro ao atualizar: HTTP ${r.status} ${txt}`)
     }
+
+    alert('Ficha atualizada com sucesso!')
+    router.push('/visualizar-fichas')
+  } catch (e) {
+    console.error('Erro ao atualizar ficha:', e)
+    alert(e instanceof Error ? e.message : 'Erro ao atualizar ficha.')
   }
 }
 
+/** ----------------- navegação ----------------- **/
 function cancelar() {
-  router.push('/visualizar-fichas');
+  router.push('/visualizar-fichas')
 }
+
+/** ----------------- boot ----------------- **/
+onMounted(async () => {
+  await carregarPlanosDeSaude()
+  await carregarEspecialidades()
+  await carregarFicha() // combos primeiro, detalhe depois => selects já selecionam
+})
 </script>

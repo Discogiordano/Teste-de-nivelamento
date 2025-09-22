@@ -55,9 +55,7 @@ async function getJSON(url: string) {
 }
 
 type FichaNorm = {
-  id: number | string | null
-  planoId: number | null
-  especialidadeId: number | null
+  id: string | null
   nomePaciente: string
   numeroCarteiraPlano: string
   nomeEspecialidade: string
@@ -65,16 +63,14 @@ type FichaNorm = {
 }
 
 function normalizaFicha(raw: any): FichaNorm {
-  const planoId = Number(raw?.planoId ?? raw?.planoDeSaudeId ?? raw?.idplanodesaude ?? NaN)
-  const especialidadeId = Number(raw?.especialidadeId ?? raw?.idespecialidade ?? NaN)
+  // ESPERA-SE QUE raw.id EXISTA (remova @JsonIgnore do DTO!)
+  const id = raw?.id != null ? String(raw.id) : null
   return {
-    id: raw?.id ?? raw?.idFicha ?? raw?.idficha ?? null,
-    planoId: Number.isNaN(planoId) ? null : planoId,
-    especialidadeId: Number.isNaN(especialidadeId) ? null : especialidadeId,
-    nomePaciente: raw?.nomePaciente ?? raw?.nomepaciente ?? raw?.nome ?? '',
-    numeroCarteiraPlano: raw?.numeroCarteiraPlano ?? raw?.numerocarteiraplano ?? '',
-    nomeEspecialidade: raw?.nomeEspecialidade ?? raw?.especialidade ?? raw?.nomeespecialidade ?? '',
-    nomePlanoDeSaude: raw?.nomePlanoDeSaude ?? raw?.planodesaude ?? raw?.plano ?? ''
+    id,
+    nomePaciente: raw?.nomePaciente ?? '',
+    numeroCarteiraPlano: raw?.numeroCarteiraPlano ?? '',
+    nomeEspecialidade: raw?.nomeEspecialidade ?? '',
+    nomePlanoDeSaude: raw?.nomePlanoDeSaude ?? ''
   }
 }
 
@@ -140,7 +136,6 @@ async function buscarFichas(filtros: Record<string, any>) {
     const especNom = (filtros?.especialidadeNome ?? '').toString().trim()
     const planoNom = (filtros?.planoNome ?? '').toString().trim()
 
-    // Decide o ENDPOINT PRIMÁRIO conforme prioridade
     let urlPrimaria = ''
     if (carteira) {
       urlPrimaria = buildUrl(`/fichas-paciente/listar-fichas-por-numero-plano?numeroCarteiraPlano=${encodeURIComponent(carteira)}`)
@@ -157,25 +152,12 @@ async function buscarFichas(filtros: Record<string, any>) {
     const json = await getJSON(urlPrimaria)
     let base: FichaNorm[] = (Array.isArray(json) ? json : []).map(normalizaFicha)
 
-    // Aplica TODOS os filtros restantes em memória para combinar resultados
+    // filtros complementares em memória
     const up = (s: string) => (s ?? '').toString().trim().toUpperCase()
-
-    if (nome) {
-      const termo = up(nome)
-      base = base.filter(f => up(f.nomePaciente).includes(termo))
-    }
-    if (carteira) {
-      const termo = up(carteira)
-      base = base.filter(f => up(f.numeroCarteiraPlano).includes(termo))
-    }
-    if (especNom) {
-      const alvo = up(especNom)
-      base = base.filter(f => up(f.nomeEspecialidade) === alvo)
-    }
-    if (planoNom) {
-      const alvo = up(planoNom)
-      base = base.filter(f => up(f.nomePlanoDeSaude) === alvo)
-    }
+    if (nome) base = base.filter(f => up(f.nomePaciente).includes(up(nome)))
+    if (carteira) base = base.filter(f => up(f.numeroCarteiraPlano).includes(up(carteira)))
+    if (especNom) base = base.filter(f => up(f.nomeEspecialidade) === up(especNom))
+    if (planoNom) base = base.filter(f => up(f.nomePlanoDeSaude) === up(planoNom))
 
     dadosAPI.value = base
   } catch (e) {
@@ -189,7 +171,7 @@ async function buscarFichas(filtros: Record<string, any>) {
 /* ----------------- tabela (view-model) ----------------- */
 const linhasTabela = computed(() => {
   return (dadosAPI.value ?? []).map(f => ({
-    id: f.id,
+    id: f.id, // já string/null
     Nome: f.nomePaciente,
     'Nº Carteira': f.numeroCarteiraPlano,
     Especialidade: f.nomeEspecialidade,
@@ -198,9 +180,54 @@ const linhasTabela = computed(() => {
 })
 
 /* ----------------- navegação ----------------- */
-function cadastrar() { router.push('/cadastrar-ficha') }
-function editarDado(item: any) { router.push(`/atualizar-ficha/${item.id}`) }
-function deletarDado(item: any) { alert(`Deletar ficha: ${item.Nome}`) }
+function cadastrar() {
+  router.push('/cadastrar-ficha')
+}
+
+function editarDado(item: any) {
+  const id = item?.id ?? null
+  if (!id) {
+    alert('ID da ficha não encontrado para edição.')
+    return
+  }
+  // Usa path para não depender do "name" da rota:
+  router.push(`/atualizar-ficha/${encodeURIComponent(String(id))}`)
+}
+
+async function deletarDado(item: any) {
+  const id = item?.id ?? item?.Id ?? item?.ID ?? item?.__raw?.id ?? null
+  if (!id) {
+    alert('Não foi possível identificar o ID da ficha para exclusão.')
+    console.error('Item sem id no deletar:', item)
+    return
+  }
+
+  if (!confirm('Confirma excluir esta ficha? Essa ação não pode ser desfeita.')) return
+
+  try {
+    // usa sua rota REST já existente: DELETE /fichas-paciente/{id}
+    const resp = await fetch(buildUrl(`/fichas-paciente/${encodeURIComponent(String(id))}`), {
+      method: 'DELETE'
+    })
+
+    if (resp.status === 204 || resp.ok) {
+      // remove da tabela sem precisar refazer a consulta
+      dadosAPI.value = (dadosAPI.value ?? []).filter(f => String(f.id) !== String(id))
+      alert('Ficha excluída com sucesso.')
+      return
+    }
+
+    // Mostra erro retornado pelo servidor (se houver)
+    const txt = await resp.text().catch(() => '')
+    alert(`Erro ao excluir (HTTP ${resp.status}) ${txt}`)
+    console.error('DELETE falhou:', resp.status, txt)
+  } catch (e: any) {
+    alert('Erro de rede ao tentar excluir a ficha.')
+    console.error('DELETE exception:', e?.message ?? e)
+  }
+}
+
+
 function voltar() { router.back() }
 
 /* boot */

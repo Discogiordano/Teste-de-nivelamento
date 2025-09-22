@@ -15,6 +15,11 @@ const router = createRouter({
         component: () => import('../views/GerenciarFicha/CadastrarFicha.vue'),
       },
       {
+        path: '/atualizar-ficha/:id',
+        name: 'AtualizarFicha',
+        component: () => import('../views/GerenciarFicha/AtualizarFicha.vue'),
+      },
+      {
         path: '/visualizar-fichas',
         name: 'VisualizarFichas',
         component: () => import('../views/GerenciarFicha/VisualizarFichas.vue'),

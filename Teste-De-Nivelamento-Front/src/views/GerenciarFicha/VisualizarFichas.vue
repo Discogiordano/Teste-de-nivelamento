@@ -1,74 +1,186 @@
+
 <template>
-  <div>
-    <h2>Visualizar Fichas</h2>
-    <v-row>
-      <v-col cols="12" md="4">
-        <v-text-field v-model="filtro.nome" label="Nome do paciente" clearable></v-text-field>
-      </v-col>
-      <v-col cols="12" md="4">
-        <v-select v-model="filtro.plano" :items="planos" label="Plano de saúde" clearable></v-select>
-      </v-col>
-      <v-col cols="12" md="4">
-        <v-select v-model="filtro.especialidade" :items="especialidades" label="Especialidade" clearable></v-select>
+  <v-container>
+    <div class="d-flex justify-end">
+      <v-btn color="primary" @click="cadastrar">Cadastrar</v-btn>
+    </div>
+  </v-container>
+  <v-container>
+    <FiltrosTabela
+      :filtros="filtros"
+      @filtrar="filtrarDados"
+    />
+    <TabelaDados
+      :cabecalhos="cabecalhos"
+      :dados="dadosFiltrados"
+      @editar="editarDado"
+      @deletar="deletarDado"
+    />
+    
+    <!-- Indicador de carregamento -->
+    <v-row v-if="carregando" justify="center" class="mt-2">
+      <v-col cols="auto">
+        <v-progress-circular indeterminate color="primary" size="24"></v-progress-circular>
+        <span class="ml-2">Carregando...</span>
       </v-col>
     </v-row>
-    <v-table>
-      <thead>
-        <tr>
-          <th scope="col">Nome</th>
-          <th scope="col">Nº Carteira</th>
-          <th scope="col">Especialidade</th>
-          <th scope="col">Plano</th>
-          <th scope="col">Ações</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="ficha in fichasFiltradas" :key="ficha.id">
-          <td>{{ ficha.nome }}</td>
-          <td>{{ ficha.numeroCarteira }}</td>
-          <td>{{ ficha.especialidade }}</td>
-          <td>{{ ficha.plano }}</td>
-          <td>
-            <v-btn color="primary" @click="editar(ficha)">Editar</v-btn>
-            <v-btn color="error" @click="deletar(ficha)">Deletar</v-btn>
-          </td>
-        </tr>
-      </tbody>
-    </v-table>
-    <Mensagem :mensagem="mensagem" />
-  </div>
+  </v-container>    
+  <v-container class="pa-4">
+    <div class="d-flex justify-end">
+      <v-btn color="secondary" @click="voltar">Voltar</v-btn>
+    </div>
+  </v-container>
 </template>
 
-<script setup lang="ts">
-import { ref, computed } from 'vue';
-import Mensagem from '../../components/Mensagem.vue';
 
-const filtro = ref({ nome: '', plano: '', especialidade: '' });
-const planos = ['Plano A', 'Plano B'];
-const especialidades = ['Cardiologia', 'Ortopedia'];
+<script lang="ts" setup>
+import FiltrosTabela from '../../components/basic/FiltrosTabela.vue';
+// Update the import path if the file is located elsewhere, for example:
+import TabelaDados from '@/components/basic/TabelaDados.vue';
+// Or, if the file does not exist, create '../../components/basic/TabelaDados.vue' with a basic Vue component:
+import { useRouter } from 'vue-router';
+import { ref, onMounted } from 'vue';
 
-const fichas = ref([
-  { id: 1, nome: 'João', numeroCarteira: '123', especialidade: 'Cardiologia', plano: 'Plano A' },
-  { id: 2, nome: 'Maria', numeroCarteira: '456', especialidade: 'Ortopedia', plano: 'Plano B' }
+const router = useRouter();
+const API_BASE = import.meta.env.VITE_API_BASE_URL;
+
+function buildUrl(path: string) {
+  if (!API_BASE) {
+    throw new Error('VITE_API_BASE_URL não configurada. Crie um arquivo .env.local com VITE_API_BASE_URL=http://localhost:8080 (ou a URL da API).');
+  }
+  const base = String(API_BASE).replace(/\/$/, '');
+  const suffix = path.startsWith('/') ? path : `/${path}`;
+  return `${base}${suffix}`;
+}
+
+// Cabeçalhos da tabela baseados no DTO
+const cabecalhos = ['Nome', 'Nº Carteira', 'Especialidade', 'Plano'];
+
+// Dados das fichas carregados da API
+const fichas = ref<Array<{
+  id?: number;
+  nomePaciente: string;
+  numeroCarteiraPlano: string;
+  nomeEspecialidade: string;
+  nomePlanoDeSaude: string;
+}>>([]);
+
+// Dados filtrados para exibição na tabela
+const dadosFiltrados = ref<Array<any>>([]);
+
+// Controle de carregamento
+const carregando = ref(false);
+
+// Variáveis para filtros
+const planos = ref<Array<string>>([]);
+const especialidades = ref<Array<string>>([]);
+
+const filtros = ref([
+  { tipo: "select" as const, label: 'Plano', chave: 'plano', opcoes: planos.value },
+  { tipo: "select" as const, label: 'Especialidade', chave: 'especialidade', opcoes: especialidades.value }
 ]);
 
-const mensagem = ref('');
+// Função para carregar todas as fichas da API
+async function carregarFichas() {
+  try {
+    carregando.value = true;
+    const response = await fetch(buildUrl('/fichas-paciente/listar-fichas-todas'));
+    const contentType = response.headers.get('content-type') || '';
+    
+    if (!response.ok) {
+      const body = contentType.includes('application/json') ? await response.json() : await response.text();
+      throw new Error(`HTTP ${response.status} - ${typeof body === 'string' ? body : JSON.stringify(body)}`);
+    }
+    
+    if (!contentType.includes('application/json')) {
+      const bodyText = await response.text();
+      throw new Error(`Resposta não é JSON. content-type=${contentType}. Corpo: ${bodyText.substring(0, 200)}...`);
+    }
+    
+    const fichásAPI = await response.json();
+    
+    // Transformar os dados do DTO para o formato da tabela
+    fichas.value = fichásAPI.map((ficha: any, index: number) => ({
+      id: index + 1, // ID baseado no índice
+      Nome: ficha.nomePaciente,
+      'Nº Carteira': ficha.numeroCarteiraPlano,
+      Especialidade: ficha.nomeEspecialidade,
+      Plano: ficha.nomePlanoDeSaude
+    }));
+    
+    dadosFiltrados.value = [...fichas.value];
+    
+    // Extrair planos e especialidades únicos para os filtros
+    const planosUnicos = [...new Set(fichas.value.map((f: any) => f.Plano))];
+    const especialidadesUnicas = [...new Set(fichas.value.map((f: any) => f.Especialidade))];
+    
+    planos.value = planosUnicos;
+    especialidades.value = especialidadesUnicas;
+    
+    // Atualizar filtros
+    filtros.value = [
+      { tipo: "select" as const, label: 'Plano', chave: 'plano', opcoes: planosUnicos },
+      { tipo: "select" as const, label: 'Especialidade', chave: 'especialidade', opcoes: especialidadesUnicas }
+    ];
+    
+  } catch (error) {
+    console.error('Erro ao carregar fichas:', error);
+    alert('Erro ao carregar fichas. Verifique se a API está funcionando.');
+  } finally {
+    carregando.value = false;
+  }
+}
 
-const fichasFiltradas = computed(() => {
-  return fichas.value.filter(f => {
-    const nomeOk = !filtro.value.nome || f.nome.toLowerCase().includes(filtro.value.nome.toLowerCase());
-    const planoOk = !filtro.value.plano || f.plano === filtro.value.plano;
-    const espOk = !filtro.value.especialidade || f.especialidade === filtro.value.especialidade;
-    return nomeOk && planoOk && espOk;
+function filtrarDados(filtros: any) {
+  dadosFiltrados.value = fichas.value.filter((item: any) => {
+    const matchNome = filtros.nome ? item.Nome.toLowerCase().includes(filtros.nome.toLowerCase()) : true;
+    const matchPlano = filtros.plano ? item.Plano === filtros.plano : true;
+    const matchEspecialidade = filtros.especialidade ? item.Especialidade === filtros.especialidade : true;
+    // Só retorna se todos os filtros forem verdadeiros
+    return matchNome && matchPlano && matchEspecialidade;
   });
+}
+
+function editarDado(item: any) {
+  // Navega para a página de atualização com o ID da ficha
+  router.push(`/atualizar-ficha/${item.id}`);
+}
+
+async function deletarDado(item: any) {
+  // Implementar ação de deletar
+  if (confirm(`Tem certeza que deseja deletar a ficha de ${item.Nome}?`)) {
+    try {
+      const response = await fetch(buildUrl(`/fichas-paciente/${item.id}`), {
+        method: 'DELETE'
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        alert('Erro ao deletar: ' + errorText);
+        return;
+      }
+      
+      alert('Ficha deletada com sucesso!');
+      // Recarregar as fichas após deletar
+      await carregarFichas();
+      
+    } catch (error) {
+      console.error('Erro ao deletar ficha:', error);
+      alert('Erro ao deletar ficha.');
+    }
+  }
+}
+
+function voltar() {
+  router.back();
+}
+
+function cadastrar() {
+  router.push('/cadastrar-ficha');
+}
+
+// Carregar dados ao montar o componente
+onMounted(() => {
+  carregarFichas();
 });
-
-function editar(ficha: any) {
-  mensagem.value = 'Função de edição não implementada.';
-}
-
-function deletar(ficha: any) {
-  fichas.value = fichas.value.filter(f => f.id !== ficha.id);
-  mensagem.value = 'Ficha deletada com sucesso!';
-}
 </script>

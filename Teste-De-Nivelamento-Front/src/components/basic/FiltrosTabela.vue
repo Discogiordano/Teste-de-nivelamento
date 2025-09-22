@@ -60,6 +60,8 @@
               v-model="valores[filtro.chave]"
               :label="filtro.label"
               :items="filtro.opcoes ?? []"
+              item-text="label"
+              item-value="value"
               variant="outlined"
               density="comfortable"
               clearable
@@ -67,8 +69,8 @@
           </div>
 
           <div class="acoes-filtros">
-            <v-btn class="btn-limpar" variant="tonal" color="primary" @click="limpar">Limpar</v-btn>
-            <v-btn class="btn-aplicar" variant="tonal" color="error" @click="aplicarFiltros">Aplicar</v-btn>
+            <v-btn variant="tonal" color="secondary" @click="limpar">Limpar</v-btn>
+            <v-btn color="primary" @click="aplicarFiltros">Aplicar</v-btn>
           </div>
         </div>
       </div>
@@ -82,7 +84,7 @@ import { ref, watchEffect, computed } from 'vue'
 type Filtro =
   | { tipo: 'texto';  label: string; chave: string }
   | { tipo: 'numero'; label: string; chave: string }
-  | { tipo: 'select'; label: string; chave: string; opcoes?: string[] }
+  | { tipo: 'select'; label: string; chave: string; opcoes?: { label: string; value: string }[] }
 
 const props = withDefaults(defineProps<{
   filtros?: Filtro[]
@@ -185,13 +187,4 @@ function limpar() {
 /* animação */
 .fade-enter-active, .fade-leave-active { transition: opacity .18s ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
-
-.btn-limpar {
-  background-color: #1976d2 !important; /* azul material */
-  color: #fff !important;
-}
-.btn-aplicar {
-  background-color: #d32f2f !important; /* vermelho material */
-  color: #fff !important;
-}
 </style>

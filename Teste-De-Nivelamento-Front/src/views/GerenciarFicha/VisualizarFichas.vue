@@ -1,186 +1,211 @@
-
+<!-- src/pages/VisualizarFichas.vue -->
 <template>
   <v-container>
-    <div class="d-flex justify-end">
+    <div class="d-flex justify-end mb-2">
       <v-btn color="primary" @click="cadastrar">Cadastrar</v-btn>
     </div>
-  </v-container>
-  <v-container>
+
     <FiltrosTabela
-      :filtros="filtros"
-      @filtrar="filtrarDados"
+      :key="filtrosKey"
+      :filtros="filtrosDef"
+      :inicialExpandido="true"
+      @filtrar="onFiltrar"
     />
+
     <TabelaDados
       :cabecalhos="cabecalhos"
-      :dados="dadosFiltrados"
+      :dados="linhasTabela"
       @editar="editarDado"
       @deletar="deletarDado"
     />
-    
-    <!-- Indicador de carregamento -->
-    <v-row v-if="carregando" justify="center" class="mt-2">
-      <v-col cols="auto">
-        <v-progress-circular indeterminate color="primary" size="24"></v-progress-circular>
-        <span class="ml-2">Carregando...</span>
+
+    <v-row v-if="carregando" justify="center" class="mt-4">
+      <v-col cols="auto" class="d-flex align-center ga-2">
+        <v-progress-circular indeterminate size="22" color="primary" />
+        <span>Carregando...</span>
       </v-col>
     </v-row>
-  </v-container>    
-  <v-container class="pa-4">
-    <div class="d-flex justify-end">
-      <v-btn color="secondary" @click="voltar">Voltar</v-btn>
+
+    <div class="d-flex justify-end mt-6">
+      <v-btn variant="tonal" color="secondary" @click="voltar">Voltar</v-btn>
     </div>
   </v-container>
 </template>
 
+<script setup lang="ts">
+import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import FiltrosTabela from '@/components/basic/FiltrosTabela.vue'
+import TabelaDados from '@/components/basic/TabelaDados.vue'
 
-<script lang="ts" setup>
-import FiltrosTabela from '../../components/basic/FiltrosTabela.vue';
-// Update the import path if the file is located elsewhere, for example:
-import TabelaDados from '@/components/basic/TabelaDados.vue';
-// Or, if the file does not exist, create '../../components/basic/TabelaDados.vue' with a basic Vue component:
-import { useRouter } from 'vue-router';
-import { ref, onMounted } from 'vue';
-
-const router = useRouter();
-const API_BASE = import.meta.env.VITE_API_BASE_URL;
+const router = useRouter()
+const API_BASE = import.meta.env.VITE_API_BASE_URL
 
 function buildUrl(path: string) {
-  if (!API_BASE) {
-    throw new Error('VITE_API_BASE_URL não configurada. Crie um arquivo .env.local com VITE_API_BASE_URL=http://localhost:8080 (ou a URL da API).');
-  }
-  const base = String(API_BASE).replace(/\/$/, '');
-  const suffix = path.startsWith('/') ? path : `/${path}`;
-  return `${base}${suffix}`;
+  if (!API_BASE) throw new Error('VITE_API_BASE_URL não configurada (.env.local).')
+  const base = String(API_BASE).replace(/\/$/, '')
+  const suffix = path.startsWith('/') ? path : `/${path}`
+  return `${base}${suffix}`
 }
 
-// Cabeçalhos da tabela baseados no DTO
-const cabecalhos = ['Nome', 'Nº Carteira', 'Especialidade', 'Plano'];
+async function getJSON(url: string) {
+  const r = await fetch(url)
+  if (!r.ok) throw new Error(`${url} -> HTTP ${r.status}`)
+  return r.json()
+}
 
-// Dados das fichas carregados da API
-const fichas = ref<Array<{
-  id?: number;
-  nomePaciente: string;
-  numeroCarteiraPlano: string;
-  nomeEspecialidade: string;
-  nomePlanoDeSaude: string;
-}>>([]);
+type FichaNorm = {
+  id: number | string | null
+  planoId: number | null
+  especialidadeId: number | null
+  nomePaciente: string
+  numeroCarteiraPlano: string
+  nomeEspecialidade: string
+  nomePlanoDeSaude: string
+}
 
-// Dados filtrados para exibição na tabela
-const dadosFiltrados = ref<Array<any>>([]);
+function normalizaFicha(raw: any): FichaNorm {
+  const planoId = Number(raw?.planoId ?? raw?.planoDeSaudeId ?? raw?.idplanodesaude ?? NaN)
+  const especialidadeId = Number(raw?.especialidadeId ?? raw?.idespecialidade ?? NaN)
+  return {
+    id: raw?.id ?? raw?.idFicha ?? raw?.idficha ?? null,
+    planoId: Number.isNaN(planoId) ? null : planoId,
+    especialidadeId: Number.isNaN(especialidadeId) ? null : especialidadeId,
+    nomePaciente: raw?.nomePaciente ?? raw?.nomepaciente ?? raw?.nome ?? '',
+    numeroCarteiraPlano: raw?.numeroCarteiraPlano ?? raw?.numerocarteiraplano ?? '',
+    nomeEspecialidade: raw?.nomeEspecialidade ?? raw?.especialidade ?? raw?.nomeespecialidade ?? '',
+    nomePlanoDeSaude: raw?.nomePlanoDeSaude ?? raw?.planodesaude ?? raw?.plano ?? ''
+  }
+}
 
-// Controle de carregamento
-const carregando = ref(false);
+/* ----------------- estado ----------------- */
+const cabecalhos = ['Ações', 'Nome', 'Nº Carteira', 'Especialidade', 'Plano']
+const carregando = ref(false)
+const dadosAPI = ref<FichaNorm[]>([])
+const planosLista = ref<{ id: number, nome: string }[]>([])
+const especialidadesLista = ref<{ id: number, nome: string }[]>([])
 
-// Variáveis para filtros
-const planos = ref<Array<string>>([]);
-const especialidades = ref<Array<string>>([]);
+/** Selects usam APENAS string (nome) como item/value */
+const filtrosKey = ref(0)
+const filtrosDef = ref([
+  { tipo: 'texto',  label: 'Nome do Cliente', chave: 'nomeCliente' },
+  { tipo: 'texto',  label: 'Nº Carteira',     chave: 'numeroCarteira' },
+  { tipo: 'select', label: 'Plano',           chave: 'planoNome',         opcoes: [] as string[] },
+  { tipo: 'select', label: 'Especialidade',   chave: 'especialidadeNome', opcoes: [] as string[] }
+])
 
-const filtros = ref([
-  { tipo: "select" as const, label: 'Plano', chave: 'plano', opcoes: planos.value },
-  { tipo: "select" as const, label: 'Especialidade', chave: 'especialidade', opcoes: especialidades.value }
-]);
+const filtrosAtuais = ref<Record<string, any>>({})
 
-// Função para carregar todas as fichas da API
-async function carregarFichas() {
+function onFiltrar(payload: Record<string, any>) {
+  filtrosAtuais.value = payload
+  buscarFichas(payload)
+}
+
+/* ----------------- combos ----------------- */
+async function carregarCombos() {
   try {
-    carregando.value = true;
-    const response = await fetch(buildUrl('/fichas-paciente/listar-fichas-todas'));
-    const contentType = response.headers.get('content-type') || '';
-    
-    if (!response.ok) {
-      const body = contentType.includes('application/json') ? await response.json() : await response.text();
-      throw new Error(`HTTP ${response.status} - ${typeof body === 'string' ? body : JSON.stringify(body)}`);
+    const [planosJson, especJson] = await Promise.all([
+      getJSON(buildUrl('/planosdesaude/listar-planosdesaude')),
+      getJSON(buildUrl('/especialidades/listar-especialidades'))
+    ])
+
+    planosLista.value = (Array.isArray(planosJson) ? planosJson : [])
+      .map((p: any) => ({ id: p?.id ?? p?.idplanodesaude, nome: p?.nome ?? p?.Nome ?? p?.descricao ?? '' }))
+      .filter(p => p.id && p.nome)
+      .sort((a, b) => a.nome.localeCompare(b.nome))
+
+    especialidadesLista.value = (Array.isArray(especJson) ? especJson : [])
+      .map((e: any) => ({ id: e?.id ?? e?.idespecialidade, nome: e?.nome ?? e?.Nome ?? e?.descricao ?? '' }))
+      .filter(e => e.id && e.nome)
+      .sort((a, b) => a.nome.localeCompare(b.nome))
+
+    filtrosDef.value = [
+      { tipo: 'texto',  label: 'Nome do Cliente', chave: 'nomeCliente' },
+      { tipo: 'texto',  label: 'Nº Carteira',     chave: 'numeroCarteira' },
+      { tipo: 'select', label: 'Plano',           chave: 'planoNome',         opcoes: planosLista.value.map(p => p.nome) },
+      { tipo: 'select', label: 'Especialidade',   chave: 'especialidadeNome', opcoes: especialidadesLista.value.map(e => e.nome) }
+    ]
+    filtrosKey.value++
+  } catch (e) {
+    console.error('Erro ao carregar combos:', e)
+  }
+}
+
+/* ----------------- busca usando seus endpoints específicos ----------------- */
+async function buscarFichas(filtros: Record<string, any>) {
+  carregando.value = true
+  try {
+    const nome     = (filtros?.nomeCliente ?? '').toString().trim()
+    const carteira = (filtros?.numeroCarteira ?? '').toString().trim()
+    const especNom = (filtros?.especialidadeNome ?? '').toString().trim()
+    const planoNom = (filtros?.planoNome ?? '').toString().trim()
+
+    // Decide o ENDPOINT PRIMÁRIO conforme prioridade
+    let urlPrimaria = ''
+    if (carteira) {
+      urlPrimaria = buildUrl(`/fichas-paciente/listar-fichas-por-numero-plano?numeroCarteiraPlano=${encodeURIComponent(carteira)}`)
+    } else if (nome) {
+      urlPrimaria = buildUrl(`/fichas-paciente/listar-fichas-por-nome?nomePaciente=${encodeURIComponent(nome)}`)
+    } else if (especNom) {
+      urlPrimaria = buildUrl(`/fichas-paciente/listar-fichas-por-especialidade?especialidadeNome=${encodeURIComponent(especNom)}`)
+    } else if (planoNom) {
+      urlPrimaria = buildUrl(`/fichas-paciente/listar-fichas-por-plano?planoNome=${encodeURIComponent(planoNom)}`)
+    } else {
+      urlPrimaria = buildUrl('/fichas-paciente/listar-fichas-todas')
     }
-    
-    if (!contentType.includes('application/json')) {
-      const bodyText = await response.text();
-      throw new Error(`Resposta não é JSON. content-type=${contentType}. Corpo: ${bodyText.substring(0, 200)}...`);
+
+    const json = await getJSON(urlPrimaria)
+    let base: FichaNorm[] = (Array.isArray(json) ? json : []).map(normalizaFicha)
+
+    // Aplica TODOS os filtros restantes em memória para combinar resultados
+    const up = (s: string) => (s ?? '').toString().trim().toUpperCase()
+
+    if (nome) {
+      const termo = up(nome)
+      base = base.filter(f => up(f.nomePaciente).includes(termo))
     }
-    
-    const fichásAPI = await response.json();
-    
-    // Transformar os dados do DTO para o formato da tabela
-    fichas.value = fichásAPI.map((ficha: any, index: number) => ({
-      id: index + 1, // ID baseado no índice
-      Nome: ficha.nomePaciente,
-      'Nº Carteira': ficha.numeroCarteiraPlano,
-      Especialidade: ficha.nomeEspecialidade,
-      Plano: ficha.nomePlanoDeSaude
-    }));
-    
-    dadosFiltrados.value = [...fichas.value];
-    
-    // Extrair planos e especialidades únicos para os filtros
-    const planosUnicos = [...new Set(fichas.value.map((f: any) => f.Plano))];
-    const especialidadesUnicas = [...new Set(fichas.value.map((f: any) => f.Especialidade))];
-    
-    planos.value = planosUnicos;
-    especialidades.value = especialidadesUnicas;
-    
-    // Atualizar filtros
-    filtros.value = [
-      { tipo: "select" as const, label: 'Plano', chave: 'plano', opcoes: planosUnicos },
-      { tipo: "select" as const, label: 'Especialidade', chave: 'especialidade', opcoes: especialidadesUnicas }
-    ];
-    
-  } catch (error) {
-    console.error('Erro ao carregar fichas:', error);
-    alert('Erro ao carregar fichas. Verifique se a API está funcionando.');
+    if (carteira) {
+      const termo = up(carteira)
+      base = base.filter(f => up(f.numeroCarteiraPlano).includes(termo))
+    }
+    if (especNom) {
+      const alvo = up(especNom)
+      base = base.filter(f => up(f.nomeEspecialidade) === alvo)
+    }
+    if (planoNom) {
+      const alvo = up(planoNom)
+      base = base.filter(f => up(f.nomePlanoDeSaude) === alvo)
+    }
+
+    dadosAPI.value = base
+  } catch (e) {
+    console.error('Erro ao buscar fichas:', e)
+    dadosAPI.value = []
   } finally {
-    carregando.value = false;
+    carregando.value = false
   }
 }
 
-function filtrarDados(filtros: any) {
-  dadosFiltrados.value = fichas.value.filter((item: any) => {
-    const matchNome = filtros.nome ? item.Nome.toLowerCase().includes(filtros.nome.toLowerCase()) : true;
-    const matchPlano = filtros.plano ? item.Plano === filtros.plano : true;
-    const matchEspecialidade = filtros.especialidade ? item.Especialidade === filtros.especialidade : true;
-    // Só retorna se todos os filtros forem verdadeiros
-    return matchNome && matchPlano && matchEspecialidade;
-  });
-}
+/* ----------------- tabela (view-model) ----------------- */
+const linhasTabela = computed(() => {
+  return (dadosAPI.value ?? []).map(f => ({
+    id: f.id,
+    Nome: f.nomePaciente,
+    'Nº Carteira': f.numeroCarteiraPlano,
+    Especialidade: f.nomeEspecialidade,
+    Plano: f.nomePlanoDeSaude
+  }))
+})
 
-function editarDado(item: any) {
-  // Navega para a página de atualização com o ID da ficha
-  router.push(`/atualizar-ficha/${item.id}`);
-}
+/* ----------------- navegação ----------------- */
+function cadastrar() { router.push('/cadastrar-ficha') }
+function editarDado(item: any) { router.push(`/atualizar-ficha/${item.id}`) }
+function deletarDado(item: any) { alert(`Deletar ficha: ${item.Nome}`) }
+function voltar() { router.back() }
 
-async function deletarDado(item: any) {
-  // Implementar ação de deletar
-  if (confirm(`Tem certeza que deseja deletar a ficha de ${item.Nome}?`)) {
-    try {
-      const response = await fetch(buildUrl(`/fichas-paciente/${item.id}`), {
-        method: 'DELETE'
-      });
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        alert('Erro ao deletar: ' + errorText);
-        return;
-      }
-      
-      alert('Ficha deletada com sucesso!');
-      // Recarregar as fichas após deletar
-      await carregarFichas();
-      
-    } catch (error) {
-      console.error('Erro ao deletar ficha:', error);
-      alert('Erro ao deletar ficha.');
-    }
-  }
-}
-
-function voltar() {
-  router.back();
-}
-
-function cadastrar() {
-  router.push('/cadastrar-ficha');
-}
-
-// Carregar dados ao montar o componente
-onMounted(() => {
-  carregarFichas();
-});
+/* boot */
+onMounted(async () => {
+  await carregarCombos()
+  await buscarFichas({}) // abre com todas
+})
 </script>
